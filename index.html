@@ -214,7 +214,7 @@ const CFG = {
   p: P.get('p') || '',                                 // participant code; a number gives balanced coverage
 };
 // Results endpoint (Google Apps Script web app URL). Set here or pass ?endpoint=... ; empty = copy/paste only.
-const RESULTS_URL = P.get('endpoint') || 'PASTE_APPS_SCRIPT_URL_HERE';
+const RESULTS_URL = P.get('endpoint') || 'https://script.google.com/macros/s/AKfycbzrYrOnhfCq7Myy-egg1xfAG7cfv2BjZV3JrECA9FQkWlkatgf48tNNdVJsa_qvrygX/exec';
 const CAN_SEND = /^https:\/\/script\.google\.com\//.test(RESULTS_URL);
 async function send(payload){ if(!CAN_SEND) return false; try{ await fetch(RESULTS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload)}); return true; }catch(e){ return false; } }
 // fixed samples used for the example page and the practice pages (excluded from the rated pool)
