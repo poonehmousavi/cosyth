@@ -405,14 +405,14 @@ async function runTrial(){
     }
     S.results.push({trial:S.t, practice:!!tr.practice, sample:s.id, dir, anchor_sample:tr.anchor, order:tr.order, context_plays:ctxPlays, ms:Math.round(performance.now()-t0), ratings});
     store.set(key(),{plan:S.plan,results:S.results,cfg:CFG});
-    send({status:'partial', study:CFG.study, participant:S.pid, n_done:S.results.length, n_total:S.plan.length, results:S.results});
+    if(S.results.length<S.plan.length) send({status:'partial', study:CFG.study, participant:S.pid, n_done:S.results.length, n_total:S.plan.length, results:S.results}); // the final page is covered by the 'complete' record
     S.t++; runTrial();
   };
 }
 
 async function finish(){
   show('v-done'); $('prog').hidden=true;
-  const out={status:'complete', study:CFG.study, participant:S.pid, finished:new Date().toISOString(), ua:navigator.userAgent, na:CFG.na, ns:CFG.ns, pool:CFG.pool||MAN.samples.filter(x=>x.role==='pool').length, results:S.results};
+  const out={status:'complete', study:CFG.study, participant:S.pid, n_done:S.results.length, n_total:S.plan.length, finished:new Date().toISOString(), ua:navigator.userAgent, na:CFG.na, ns:CFG.ns, pool:CFG.pool||MAN.samples.filter(x=>x.role==='pool').length, results:S.results};
   const txt=JSON.stringify(out); $('out').value=txt;
   const sent = await send(out);
   const msgEl=$('v-done').querySelector('p');
