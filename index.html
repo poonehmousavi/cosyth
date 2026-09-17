@@ -1,0 +1,430 @@
+<title>Contextual Audio-Speech Co-Synthesis</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#F2F4F7; --panel:#FFFFFF; --panel-2:#F7F8FA; --ink:#171A21; --muted:#5B6371; --line:#D8DCE4;
+  --accent:#0F766E; --accent-soft:#D9F0EC; --accent-ink:#FFFFFF; --s2a:#4F46E5; --s2a-soft:#E4E2FB;
+  --warn:#B45309; --warn-soft:#FDEBD3; --ok:#15803D; --ok-soft:#DCF5E3; --bad:#B91C1C; --bad-soft:#FBE3E3; --track:#E3E6EC; --focus:#0F766E;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#12141A; --panel:#1B1E26; --panel-2:#22262F; --ink:#E8EAF0; --muted:#9AA3B2; --line:#2E3340;
+  --accent:#2DD4BF; --accent-soft:#12332F; --accent-ink:#0B1F1C; --s2a:#A5B4FC; --s2a-soft:#26284A;
+  --warn:#F59E0B; --warn-soft:#3A2A10; --ok:#4ADE80; --ok-soft:#14301E; --bad:#F87171; --bad-soft:#3A1717; --track:#2E3340; --focus:#2DD4BF;
+}}
+:root[data-theme="dark"]{
+  --bg:#12141A; --panel:#1B1E26; --panel-2:#22262F; --ink:#E8EAF0; --muted:#9AA3B2; --line:#2E3340;
+  --accent:#2DD4BF; --accent-soft:#12332F; --accent-ink:#0B1F1C; --s2a:#A5B4FC; --s2a-soft:#26284A;
+  --warn:#F59E0B; --warn-soft:#3A2A10; --ok:#4ADE80; --ok-soft:#14301E; --bad:#F87171; --bad-soft:#3A1717; --track:#2E3340; --focus:#2DD4BF;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5}
+.wrap{max-width:900px;margin:0 auto;padding-inline:16px;padding-block:16px 48px}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:8px 12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{font-weight:600;letter-spacing:.01em}
+.brand small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+.prog{flex:1;min-width:140px;display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.prog .bar{flex:1;height:6px;background:var(--track);border-radius:3px;overflow:hidden}
+.prog .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+.badge{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:4px;background:var(--accent-soft);color:var(--accent);font-weight:500;white-space:nowrap}
+.badge.s2a{background:var(--s2a-soft);color:var(--s2a)}
+.badge.practice{background:var(--warn-soft);color:var(--warn)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px}
+.panel + .panel{margin-top:14px}
+h1{font-size:22px;margin:0 0 6px;text-wrap:balance}
+h2{font-size:17px;margin:0 0 8px;text-wrap:balance}
+h3{font-size:13px;margin:0 0 6px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:500}
+p{margin:0 0 10px;max-width:70ch}
+p.lead{font-size:16px}
+ul{margin:0 0 10px;padding-left:20px;max-width:70ch}
+li{margin-bottom:4px}
+.muted{color:var(--muted)}
+.mono{font-family:var(--mono)}
+button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:9px 16px}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.right{justify-content:flex-end}
+.between{justify-content:space-between}
+/* criteria list */
+.crits{display:grid;gap:8px;margin:10px 0 14px;max-width:70ch}
+.crit{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;background:var(--panel-2);border-radius:8px;padding:10px 12px}
+.crit .q{font-weight:600}
+.crit .n{font-family:var(--mono);font-size:12px;color:var(--accent);padding-top:3px;min-width:18px}
+.crit small{display:block;color:var(--muted)}
+.scale-demo{display:grid;grid-template-columns:repeat(5,1fr);font-family:var(--mono);font-size:11px;color:var(--muted);text-align:center;margin-top:6px;max-width:70ch}
+.scale-demo span{border-top:2px solid var(--track);padding-top:4px}
+.reminder{font-size:13px;color:var(--muted);background:var(--panel-2);border-radius:8px;padding:8px 12px;margin-top:8px}
+.reminder b{color:var(--ink);font-weight:500}
+/* context */
+.ctx{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.ctx .txt{flex:1;min-width:200px}
+.play{display:inline-flex;align-items:center;gap:8px;min-width:112px;justify-content:center;font-family:var(--mono);font-size:13px}
+.play.big{padding:12px 18px;font-size:14px}
+.play .ic{width:0;height:0;border-left:11px solid currentColor;border-top:7px solid transparent;border-bottom:7px solid transparent}
+.play.on .ic{border:0;width:10px;height:12px;background:currentColor;border-radius:2px}
+.pbar{height:4px;background:var(--track);border-radius:2px;overflow:hidden;margin-top:8px}
+.pbar i{display:block;height:100%;width:0;background:var(--accent)}
+.s2a .pbar i{background:var(--s2a)}
+/* example page */
+.ex{display:grid;gap:12px;margin-top:8px}
+.ex .cand{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;border:1px solid var(--line);border-radius:10px;padding:12px}
+.ex .cand.good{border-color:var(--ok);background:var(--ok-soft)}
+.ex .cand.bad{border-color:var(--bad);background:var(--bad-soft)}
+.ex .verdict{font-weight:600;margin-bottom:4px}
+.ex .cand.good .verdict{color:var(--ok)} .ex .cand.bad .verdict{color:var(--bad)}
+.ex .why{font-size:13px;margin:0;padding-left:18px}
+.ex .why li{margin-bottom:2px}
+.ex .quote{font-style:italic;color:var(--muted);font-size:13px}
+/* stimuli */
+.stims{display:grid;gap:12px;margin-top:12px}
+.stim{border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--panel);display:grid;grid-template-columns:auto 1fr;gap:12px 16px;align-items:start}
+.stim.unplayed{border-style:dashed}
+.stim .lab{font-family:var(--mono);font-weight:500;font-size:18px;width:40px;height:40px;border-radius:8px;background:var(--panel-2);display:flex;align-items:center;justify-content:center}
+.stim .left{display:flex;flex-direction:column;gap:8px;align-items:center}
+.stim .plays{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.stim .body{display:grid;gap:10px}
+.stim .sysname{font-family:var(--mono);font-size:11px;color:var(--warn)}
+.sl{display:grid;gap:4px}
+.sl .hd{display:flex;justify-content:space-between;gap:10px;font-size:13px}
+.sl .hd .v{font-family:var(--mono);font-variant-numeric:tabular-nums;min-width:3ch;text-align:right;color:var(--muted)}
+.sl .hd .v.set{color:var(--ink);font-weight:500}
+input[type=range]{width:100%;margin:0;accent-color:var(--accent);height:28px}
+.sl.untouched input[type=range]{accent-color:#9AA3B2;opacity:.75}
+.ticks{display:grid;grid-template-columns:repeat(5,1fr);font-family:var(--mono);font-size:10px;color:var(--muted);text-align:center}
+.ticks span:first-child{text-align:left}.ticks span:last-child{text-align:right}
+.note{background:var(--panel-2);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--muted)}
+.feedback{border-radius:8px;padding:12px 14px;background:var(--warn-soft);color:var(--ink);font-size:14px}
+textarea{width:100%;min-height:180px;font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:8px;background:var(--panel-2);color:var(--ink);padding:10px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13px;font-family:var(--mono)}
+.kv span:nth-child(odd){color:var(--muted)}
+.toast{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+@media (max-width:520px){ .stim,.ex .cand{grid-template-columns:1fr} .stim .left{flex-direction:row} }
+</style>
+
+<div class="wrap">
+<header class="top">
+  <div class="brand">Contextual Audio-Speech Co-Synthesis<small id="subtitle">Listening test</small></div>
+  <div class="prog" id="prog" hidden><span id="progTxt">0 / 0</span><div class="bar"><i id="progBar"></i></div></div>
+  <span class="badge" id="pidBadge" hidden></span>
+</header>
+
+<!-- ================= 1. INTRO ================= -->
+<section id="v-intro" class="panel">
+  <h1>Do these belong together?</h1>
+  <p class="lead">On each page you get either a <b>sound</b> or a <b>spoken sentence</b>, plus a few <b>candidates</b> of the other kind. We want to know whether the two are related: could they happen together, in the same situation? Give each candidate one score from 0 to 100.</p>
+  <h3>Ask yourself</h3>
+  <div class="crits">
+    <div class="crit"><span class="n">1</span><div><span class="q">Same situation?</span><small>Could this sound and this sentence happen in the same moment? The sentence need not describe the sound.</small></div></div>
+    <div class="crit"><span class="n">2</span><div><span class="q">Right amount of detail?</span><small>Not vague, and nothing that doesn't belong.</small></div></div>
+    <div class="crit"><span class="n">3</span><div><span class="q">Really speech, or really a sound?</span><small>Not silence, noise, or the wrong kind of clip.</small></div></div>
+    <div class="crit"><span class="n">4</span><div><span class="q">Clean and natural?</span><small>No glitches or robotic artifacts.</small></div></div>
+    <div class="crit"><span class="n">5</span><div><span class="q">Emotion, pace and mood fit?</span><small>For the voice and for the background alike.</small></div></div>
+  </div>
+  <div class="scale-demo"><span>Bad</span><span>Poor</span><span>Fair</span><span>Good</span><span>Excellent</span></div>
+  <div class="note" style="margin-top:14px">Please use headphones in a quiet room. The test takes about <span id="tut-min">14</span> minutes. Use the whole range, and equal scores are fine. Your answers are anonymous.</div>
+  <div class="row between" style="margin-top:16px"><button id="testAudio" class="play">Test sound</button><button class="primary" id="toExample">See an example</button></div>
+</section>
+
+<!-- ================= 2. EXAMPLE ================= -->
+<section id="v-example" hidden>
+  <div class="panel">
+    <h2>Example 1: sound → sentence</h2>
+    <p>Listen to the sound, then the two candidate sentences. We explain why one deserves a high score and the other a low one.</p>
+    <div class="ctx" id="ex1ctx"><button class="play big" id="ex1play"><span class="ic"></span><span class="t">Play</span></button><div class="txt"><p style="margin:0">The sound</p><p class="quote" id="ex1q" style="margin:2px 0 0"></p><div class="pbar"><i id="ex1bar"></i></div></div></div>
+    <div class="ex">
+      <div class="cand good"><button class="play" id="ex1a"><span class="ic"></span><span class="t">Play</span></button><div><div class="verdict">High score</div><div class="quote" id="ex1aq"></div><ul class="why">
+        <li>Same situation: someone reacting to a storm coming closer.</li>
+        <li>Right detail: it mentions running to the car, not a list of what you hear.</li>
+        <li>Clear speech, natural sounding.</li>
+        <li>Delivery fits: hurried, a little worried.</li></ul></div></div>
+      <div class="cand bad"><button class="play" id="ex1b"><span class="ic"></span><span class="t">Play</span></button><div><div class="verdict">Low score</div><div class="quote" id="ex1bq"></div><ul class="why">
+        <li>Different situation: nothing about a storm or weather at all.</li>
+        <li>The speech itself is clear, but that is not enough when it does not belong here.</li>
+        <li>Relaxed, playful tone that does not fit thunder.</li></ul></div></div>
+    </div>
+  </div>
+  <div class="panel s2a">
+    <h2>Example 2: sentence → sound</h2>
+    <div class="ctx" id="ex2ctx"><button class="play big" id="ex2play"><span class="ic"></span><span class="t">Play</span></button><div class="txt"><p style="margin:0">The sentence</p><p class="quote" id="ex2q" style="margin:2px 0 0"></p><div class="pbar"><i id="ex2bar"></i></div></div></div>
+    <div class="ex">
+      <div class="cand good"><button class="play" id="ex2a"><span class="ic"></span><span class="t">Play</span></button><div><div class="verdict">High score</div><ul class="why" id="ex2awhy"></ul></div></div>
+      <div class="cand bad"><button class="play" id="ex2b"><span class="ic"></span><span class="t">Play</span></button><div><div class="verdict">Low score</div><ul class="why" id="ex2bwhy"></ul></div></div>
+    </div>
+    <div class="row between" style="margin-top:12px"><button id="backIntro">Back</button><button class="primary" id="toPractice">Start practice</button></div>
+  </div>
+</section>
+
+<!-- ================= 3. TRIAL ================= -->
+<section id="v-trial" hidden>
+  <div class="panel" id="ctxPanel">
+    <div class="row between" style="margin-bottom:8px"><h2 style="margin:0" id="ctxTitle">The sound</h2><span class="row"><span class="badge practice" id="practiceBadge" hidden>Practice</span><span class="badge" id="dirBadge"></span></span></div>
+    <div class="ctx" id="ctx">
+      <button class="play big" id="ctxPlay"><span class="ic"></span><span class="t">Play</span></button>
+      <div class="txt"><p id="ctxText" style="margin:0"></p><p class="quote" id="ctxQuote" style="margin:2px 0 0;font-style:italic;color:var(--muted);font-size:13px"></p><div class="pbar"><i id="ctxBar"></i></div></div>
+    </div>
+    <p class="muted" id="reveal" style="margin:8px 0 0" hidden></p>
+  </div>
+  <div class="panel">
+    <h2 style="margin:0">Candidates</h2>
+    <p id="candQ" style="margin:4px 0 0;font-size:16px"></p>
+    <div class="reminder" id="candHint"></div>
+    <div class="stims" id="stims"></div>
+    <div id="feedback" class="feedback" style="margin-top:14px" hidden></div>
+    <div class="row between" style="margin-top:16px">
+      <span class="row"><button id="back">Back</button><span class="muted" id="status"></span></span>
+      <button class="primary" id="next" disabled>Next</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 4. DONE ================= -->
+<section id="v-done" class="panel" hidden>
+  <h2>Thank you</h2>
+  <p>Your ratings are complete. <b>Please send them to the study team</b>: click <b>Copy results</b> and paste the text into your reply. The text is also shown below in case copying fails.</p>
+  <div class="row" style="margin-bottom:12px">
+    <button class="primary" id="copy">Copy results</button>
+    <a id="mail" hidden><button>Open email</button></a>
+    <button id="dl" hidden>Save file</button>
+  </div>
+  <div class="kv" id="doneKv" style="margin-bottom:12px"></div>
+  <textarea id="out" readonly></textarea>
+</section>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+'use strict';
+// ---------------------------------------------------------------- config
+const P = new URLSearchParams(location.search);
+const CFG = {
+  study: P.get('study') || 'cosyn-pilot',
+  na: Math.max(0, parseInt(P.get('na') || '6', 10)),   // audio→speech trials per rater
+  ns: Math.max(0, parseInt(P.get('ns') || '6', 10)),   // speech→audio trials per rater
+  pool: Math.max(0, parseInt(P.get('pool') || '0', 10)), // 0 = use every sample in the manifest
+  practice: P.get('practice') !== '0',
+  reveal: P.get('reveal') === '1',                     // team view: show system names, captions, transcripts
+  to: P.get('to') || '',                               // results email
+  p: P.get('p') || '',                                 // participant code; a number gives balanced coverage
+};
+// Results endpoint (Google Apps Script web app URL). Set here or pass ?endpoint=... ; empty = copy/paste only.
+const RESULTS_URL = P.get('endpoint') || 'PASTE_APPS_SCRIPT_URL_HERE';
+const CAN_SEND = /^https:\/\/script\.google\.com\//.test(RESULTS_URL);
+async function send(payload){ if(!CAN_SEND) return false; try{ await fetch(RESULTS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload)}); return true; }catch(e){ return false; } }
+// fixed samples used for the example page and the practice pages (excluded from the rated pool)
+// speech→sound example: pick with ?ex2=<id>; each entry lists the reasons shown under the high-scoring candidate
+const S2A_EXAMPLES = {
+  '1CDjXpp0iEo': ['Same situation: a room full of people laughing at a party.', 'Real-sounding, no artifacts.', 'Warm and lively, like the sentence.'],
+  'aSheN1oz4Io': ['Same situation: applause for people who are doing well.', 'Real-sounding, no artifacts.', 'Energetic, matching the encouraging tone.'],
+  'yGx08kFWCSE': ['Same situation: food frying while someone finishes cooking.', 'Real-sounding kitchen audio.', 'Calm and homely, like the sentence.'],
+  '23MER4exl90': ['Same situation: horns and traffic while someone tries to cross.', 'Real-sounding street audio.', 'Loud and chaotic, matching the frustration.'],
+  'LQ7mFn5CvmI': ['Same situation: excited birds being fed.', 'Real-sounding, no artifacts.', 'Lively and close, like the cheerful sentence.'],
+};
+const EX2 = S2A_EXAMPLES[P.get('ex2')] ? P.get('ex2') : '1CDjXpp0iEo';
+const EXAMPLE = { a2s:{ctx:'7W3cwaYDvJ0', bad:'IomFjGmd3FA'}, s2a:{ctx:EX2, bad:'Ah4A2GmHay8'} };
+// practice feedback, one note per candidate, phrased through the five questions
+const PRACTICE_NOTES = {
+  cfXE_kr4Hi4: {
+    gt:       ['high', 'Same situation (rushing to save the laundry from a downpour), the right amount of detail, clear speech, and an urgent delivery that fits the rain.'],
+    anchor:   ['low',  'A different situation: nothing in it fits this sound, even though the speech itself is clear.'],
+    cascaded: ['high', 'Same situation, clear speech, and a tone that fits the rain.'],
+    model_a:  ['judge','The idea may fit, but listen to the quality: unclear or artifact-laden speech pulls the score down. You decide how much.'],
+    model_b:  ['judge','The idea may fit, but listen to the quality: unclear or artifact-laden speech pulls the score down. You decide how much.'],
+  },
+  fSXROtIY4vM: {
+    gt:       ['high', 'Same situation (a siren passing close by, exactly what the sentence reacts to), realistic sound, and the urgency to match.'],
+    anchor:   ['low',  'A different situation: nothing in this sound fits the sentence.'],
+    cascaded: ['high', 'Same situation (an emergency on the street), realistic clean sound, and a mood that fits the sentence.'],
+    ours:     ['high', 'Same situation (an emergency on the street), realistic clean sound, and a mood that fits the sentence.'],
+  },
+};
+const PRACTICE = { a2s:'cfXE_kr4Hi4', s2a:'fSXROtIY4vM' };
+const SYSTEMS = {
+  a2s: [ {k:'gt',clip:'reference_speech'}, {k:'anchor',clip:'reference_speech',anchor:true},
+         {k:'cascaded',clip:'a2s_cascaded'}, {k:'model_a',clip:'a2s_model_a'}, {k:'model_b',clip:'a2s_model_b'} ],
+  s2a: [ {k:'gt',clip:'reference_audio'}, {k:'anchor',clip:'reference_audio',anchor:true},
+         {k:'cascaded',clip:'s2a_cascaded'}, {k:'ours',clip:'s2a_ours'} ],
+};
+const CTX_CLIP = {a2s:'reference_audio', s2a:'reference_speech'};
+const LABELS = 'ABCDEFG';
+
+// ---------------------------------------------------------------- utils
+const $ = id => document.getElementById(id);
+function hash(str){ let h1=0xdeadbeef, h2=0x41c6ce57; for(let i=0;i<str.length;i++){const c=str.charCodeAt(i); h1=Math.imul(h1^c,2654435761); h2=Math.imul(h2^c,1597334677);} h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909); h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909); return (h2>>>0)*4294967296+(h1>>>0); }
+function rng(seed){ let a=seed>>>0; return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function shuffle(arr, r){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(r()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1800); }
+function show(id){ for(const v of ['v-intro','v-example','v-trial','v-done']) $(v).hidden = v!==id; window.scrollTo({top:0}); }
+const store = { get(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } }, set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }, del(k){ try{ localStorage.removeItem(k); }catch(e){} } };
+
+// ---------------------------------------------------------------- audio
+let AC=null; const bufs=new Map(); const pending=new Map();
+function ac(){ if(!AC){ AC=new (window.AudioContext||window.webkitAudioContext)(); } if(AC.state==='suspended') AC.resume(); return AC; }
+async function loadSprite(id){
+  if(bufs.has(id)) return bufs.get(id);
+  if(pending.has(id)) return pending.get(id);
+  const p=(async()=>{ const r=await fetch('audio/'+id+'.mp4'); if(!r.ok) throw new Error('fetch '+id); const ab=await r.arrayBuffer(); const b=await ac().decodeAudioData(ab); bufs.set(id,b); pending.delete(id); return b; })();
+  pending.set(id,p); return p;
+}
+let cur=null;
+function stopAll(){ if(cur){ const c=cur; cur=null; try{c.src.stop();}catch(e){} c.onend(true); } }
+function playSeg(buf, start, dur, ui){
+  stopAll(); const c=ac(); const src=c.createBufferSource(); src.buffer=buf; src.connect(c.destination);
+  const t0=c.currentTime; src.start(0,start,dur);
+  let raf; const tick=()=>{ const f=Math.min(1,(c.currentTime-t0)/dur); ui.bar.style.width=(f*100)+'%'; raf=requestAnimationFrame(tick); };
+  ui.btn.classList.add('on'); ui.btn.querySelector('.t').textContent='Stop'; tick();
+  const onend=(interrupted)=>{ cancelAnimationFrame(raf); ui.btn.classList.remove('on'); ui.btn.querySelector('.t').textContent='Play'; ui.bar.style.width= interrupted?'0%':'100%'; if(!interrupted && ui.onComplete) ui.onComplete(); };
+  const me={src,onend,ui}; cur=me; src.onended=()=>{ if(cur===me){ cur=null; onend(false);} };
+}
+// wire a play/stop button to a clip: returns a function that reports plays
+function wire(btn, bar, getBuf, seg, onPlay){
+  const ui={btn, bar, onComplete:null};
+  btn.onclick=async()=>{ if(cur && cur.ui===ui){ stopAll(); return; } const buf=await getBuf(); if(onPlay) onPlay(); playSeg(buf, seg[0], seg[1], ui); };
+  return ui;
+}
+
+// ---------------------------------------------------------------- state
+let MAN=null, S={};
+const sample=id=>MAN.samples.find(s=>s.id===id);
+const key=()=> 'cosyn:'+CFG.study+':'+S.pid;
+
+function plan(pid){
+  const excluded=new Set([EXAMPLE.a2s.ctx,EXAMPLE.a2s.bad,EXAMPLE.s2a.ctx,EXAMPLE.s2a.bad,PRACTICE.a2s,PRACTICE.s2a]);
+  let pool=MAN.samples.filter(s=>s.role==='pool' && !excluded.has(s.id));
+  if(CFG.pool && CFG.pool<pool.length) pool=shuffle(pool, rng(hash('pool|'+CFG.study))).slice(0,CFG.pool);
+  // balanced coverage: two fixed orderings of the pool, rater k takes window k
+  const m=pid.match(/\d+/); const k = m ? parseInt(m[0],10) : (hash(pid)%1000);
+  const ordA=shuffle(pool, rng(hash('a2s|'+CFG.study))), ordS=shuffle(pool, rng(hash('s2a|'+CFG.study)));
+  const win=(ord,n,off)=>{ const out=[]; for(let i=0;i<n;i++) out.push(ord[(off+i)%ord.length]); return out; };
+  const a=win(ordA, CFG.na, k*CFG.na), s=win(ordS, CFG.ns, k*CFG.ns + Math.floor(pool.length/2));
+  const r=rng(hash(CFG.study+'|'+pid));
+  const trials=shuffle(a.map(x=>({id:x.id,dir:'a2s'})).concat(s.map(x=>({id:x.id,dir:'s2a'}))), r);
+  // anchor: the fixed mismatched pair from mismatch_pairs.csv when the sample has one, otherwise a random different-scene sample
+  const mk=(t,practice)=>{ const smp=sample(t.id); const others=MAN.samples.filter(o=>o.id!==t.id && o.scene!==smp.scene && o.clips.reference_audio && o.clips.reference_speech); return {id:t.id, dir:t.dir, practice, anchor: smp.anchor || others[Math.floor(r()*others.length)].id, order:shuffle(SYSTEMS[t.dir].map(x=>x.k), r)}; };
+  const pr = CFG.practice ? [mk({id:PRACTICE.a2s,dir:'a2s'},true), mk({id:PRACTICE.s2a,dir:'s2a'},true)] : [];
+  return pr.concat(trials.map(t=>mk(t,false)));
+}
+
+// ---------------------------------------------------------------- intro + example
+function initIntro(){
+  $('tut-min').textContent = Math.round((CFG.na+CFG.ns)*0.9 + (CFG.practice?3:0));
+  $('testAudio').onclick=()=>{ const c=ac(); const o=c.createOscillator(); const g=c.createGain(); g.gain.value=0.08; o.frequency.value=440; o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime+0.4); };
+  $('toExample').onclick=async()=>{ if(!MAN){ toast('Loading…'); await MANP; } if(!MAN) return; show('v-example'); initExample(); };
+  $('backIntro').onclick=()=>{ stopAll(); show('v-intro'); };
+  $('toPractice').onclick=()=>{ stopAll(); if(S.plan){ $('prog').hidden=false; runTrial(); } else start(); };
+}
+let exampleReady=false;
+function initExample(){
+  if(exampleReady) return; exampleReady=true;
+  const e1=EXAMPLE.a2s, e2=EXAMPLE.s2a; const c1=sample(e1.ctx), b1=sample(e1.bad), c2=sample(e2.ctx), b2=sample(e2.bad);
+  $('ex1aq').textContent='“'+c1.text+'”'; $('ex1bq').textContent='“'+b1.text+'”'; $('ex2q').textContent='“'+c2.text+'”'; $('ex1q').textContent=c1.caption;
+  $('ex2awhy').innerHTML=S2A_EXAMPLES[EX2].map(t=>'<li>'+t+'</li>').join(''); $('ex2bwhy').innerHTML='<li>Different situation: a power drill has nothing to do with this sentence.</li><li>Harsh, mechanical mood that clashes with it.</li>';
+  [e1.ctx,e1.bad,e2.ctx,e2.bad].forEach(id=>loadSprite(id).catch(()=>{}));
+  const bar=()=>document.createElement('i');
+  const mkbar=(btn)=>{ const w=document.createElement('div'); btn.replaceWith(w); w.appendChild(btn); const d=document.createElement('div'); d.className='pbar'; const i=bar(); d.appendChild(i); w.appendChild(d); return i; };
+  wire($('ex1play'), $('ex1bar'), ()=>loadSprite(e1.ctx), c1.clips.reference_audio);
+  wire($('ex1a'), mkbar($('ex1a')), ()=>loadSprite(e1.ctx), c1.clips.reference_speech);
+  wire($('ex1b'), mkbar($('ex1b')), ()=>loadSprite(e1.bad), b1.clips.reference_speech);
+  wire($('ex2play'), $('ex2bar'), ()=>loadSprite(e2.ctx), c2.clips.reference_speech);
+  wire($('ex2a'), mkbar($('ex2a')), ()=>loadSprite(e2.ctx), c2.clips.reference_audio);
+  wire($('ex2b'), mkbar($('ex2b')), ()=>loadSprite(e2.bad), b2.clips.reference_audio);
+}
+
+function start(){
+  S.pid = CFG.p || ('R'+Math.random().toString(36).slice(2,8).toUpperCase());
+  $('pidBadge').textContent=S.pid; $('pidBadge').hidden=false;
+  const saved=store.get(key());
+  if(saved && saved.results && saved.results.length && saved.results.length<saved.plan.length && CFG.p){ S.plan=saved.plan; S.results=saved.results; toast('Resuming where you left off'); }
+  else { S.plan=plan(S.pid); S.results=[]; store.set(key(),{plan:S.plan,results:S.results,cfg:CFG,started:new Date().toISOString()}); }
+  S.t=S.results.length; $('prog').hidden=false; runTrial();
+}
+
+// ---------------------------------------------------------------- trial
+async function runTrial(){
+  if(S.t>=S.plan.length) return finish();
+  const tr=S.plan[S.t]; const s=sample(tr.id); const dir=tr.dir; const t0=performance.now();
+  const nReal=S.plan.filter(t=>!t.practice).length, iReal=S.plan.slice(0,S.t).filter(t=>!t.practice).length;
+  show('v-trial'); stopAll(); $('feedback').hidden=true;
+  $('progTxt').textContent = tr.practice ? 'practice' : (iReal+1)+' / '+nReal; $('progBar').style.width=(100*iReal/nReal)+'%';
+  $('practiceBadge').hidden=!tr.practice;
+  $('dirBadge').textContent = dir==='a2s' ? 'sound → sentence' : 'sentence → sound'; $('dirBadge').className='badge '+dir; $('ctx').className='ctx '+dir;
+  $('ctxTitle').textContent = dir==='a2s' ? 'The sound' : 'The sentence';
+  $('ctxText').textContent = dir==='a2s' ? 'Listen to the sound first.' : 'Listen to the sentence first.';
+  $('candQ').textContent = dir==='a2s' ? 'Could each of these sentences be said in this situation? Give each one a score.' : 'Could this sentence be said in each of these places? Give each one a score.';
+  $('candHint').innerHTML = dir==='a2s' ? 'Think about: <b>same situation</b> · <b>right amount of detail</b> · <b>really speech</b> · <b>clean and natural</b> · <b>emotion, pace and tone fit</b>' : 'Think about: <b>same situation</b> · <b>right amount of detail</b> · <b>really an environment sound</b> · <b>clean and natural</b> · <b>loudness, timing and mood fit</b>';
+  $('ctxQuote').textContent = dir==='a2s' ? s.caption : '“'+s.text+'”';
+  $('reveal').hidden=!CFG.reveal; if(CFG.reveal) $('reveal').textContent='[team view] '+s.id+' · anchor from '+tr.anchor;
+  $('stims').innerHTML=''; $('next').disabled=true; $('status').textContent='Loading audio…'; $('next').textContent = tr.practice ? 'Check' : 'Next';
+  let main, anc; try { [main,anc]=await Promise.all([loadSprite(s.id), loadSprite(tr.anchor)]); } catch(e){ $('status').textContent='Audio failed to load. Check your connection and reload the page.'; return; }
+  if(S.plan[S.t+1]){ loadSprite(S.plan[S.t+1].id).catch(()=>{}); loadSprite(S.plan[S.t+1].anchor).catch(()=>{}); }
+  let ctxPlays=0; const ctxSeg=s.clips[CTX_CLIP[dir]];
+  wire($('ctxPlay'), $('ctxBar'), ()=>main, ctxSeg, ()=>{ctxPlays++;});
+  const rows={}; const pre=(S.prefill && S.prefill.sample===s.id && S.prefill.dir===dir) ? S.prefill : null; S.prefill=null;
+  tr.order.forEach((k,idx)=>{
+    const sys=SYSTEMS[dir].find(x=>x.k===k); const seg = sys.anchor ? sample(tr.anchor).clips[sys.clip] : s.clips[sys.clip]; const buf = sys.anchor ? anc : main;
+    const el=document.createElement('div'); el.className='stim unplayed'; el.id='stim-'+k;
+    el.innerHTML = '<div class="left"><div class="lab">'+LABELS[idx]+'</div><button class="play" id="play-'+k+'"><span class="ic"></span><span class="t">Play</span></button><span class="plays" id="plays-'+k+'">not played</span></div>'
+      + '<div class="body">'+(CFG.reveal?'<div class="sysname">'+k+'</div>':'')+'<div class="pbar"><i id="bar-'+k+'"></i></div>'
+      + '<div class="sl untouched" id="sl-'+k+'"><div class="hd"><span>Overall score</span><span class="v">–</span></div><input type="range" min="0" max="100" value="50" id="r-'+k+'" aria-label="Overall score for candidate '+LABELS[idx]+'"><div class="ticks"><span>Bad</span><span>Poor</span><span>Fair</span><span>Good</span><span>Excellent</span></div></div>'
+      + '</div>';
+    $('stims').appendChild(el);
+    const row={k, label:LABELS[idx], plays:0, completed:0, touched:false}; rows[k]=row;
+    const ui=wire($('play-'+k), $('bar-'+k), ()=>buf, seg, ()=>{ row.plays++; el.classList.remove('unplayed'); $('plays-'+k).textContent='played ×'+row.plays; check(); });
+    ui.onComplete=()=>{ row.completed++; };
+    const inp=$('r-'+k), sl=$('sl-'+k); const set=()=>{ row.touched=true; sl.classList.remove('untouched'); const v=sl.querySelector('.v'); v.textContent=inp.value; v.classList.add('set'); check(); };
+    inp.addEventListener('input',set); inp.addEventListener('change',set);
+    if(pre && pre.ratings[k]){ const pr=pre.ratings[k]; inp.value=pr.overall; row.plays=pr.plays; row.completed=pr.completed_plays; if(row.plays){ el.classList.remove('unplayed'); $('plays-'+k).textContent='played ×'+row.plays; } set(); }
+  });
+  if(pre) ctxPlays=pre.context_plays||0;
+  function check(){
+    const mp=Object.values(rows).filter(r=>r.plays===0).map(r=>r.label), mr=Object.values(rows).filter(r=>!r.touched).map(r=>r.label);
+    const msg = mp.length ? 'Play: '+mp.join(', ') : mr.length ? 'Rate: '+mr.join(', ') : '';
+    $('status').textContent=msg; $('next').disabled=!!msg;
+  }
+  check();
+  let checked=false;
+  $('back').onclick=()=>{ stopAll(); if(S.t===0){ show('v-example'); initExample(); $('prog').hidden=true; return; } S.t--; S.prefill=S.results.pop(); store.set(key(),{plan:S.plan,results:S.results,cfg:CFG}); runTrial(); };
+  $('next').onclick=()=>{
+    stopAll();
+    const ratings={}; for(const k in rows){ const r=rows[k]; ratings[k]={overall:parseInt($('r-'+k).value,10), label:r.label, plays:r.plays, completed_plays:r.completed}; }
+    if(tr.practice && !checked){
+      checked=true; const g=ratings.gt, a=ratings.anchor; const notes=PRACTICE_NOTES[s.id]||{};
+      const ok = tr.order.every(k=>(notes[k]||[])[0]!=='high' || ratings[k].overall>a.overall);
+      const tag={high:'should score high',low:'should score low',above:'should score above '+a.label,judge:'you decide'};
+      const belowAnchor=tr.order.filter(k=>(notes[k]||[])[0]==='high' && ratings[k].overall<=a.overall).map(k=>ratings[k].label);
+      $('feedback').innerHTML = (ok?'<b>Good.</b> ':'<b>Take another look.</b> ')+'Here is how the five questions apply on this page.<ul style="margin:8px 0 0;padding-left:18px">'
+        + tr.order.map(k=>{ const n=notes[k]||['judge','Use the same five questions.']; return '<li><b>'+ratings[k].label+'</b> ('+tag[n[0]]+', you gave '+ratings[k].overall+'): '+n[1]+'</li>'; }).join('')
+        + '</ul>'+(belowAnchor.length?'<p style="margin:8px 0 0">You scored '+belowAnchor.join(', ')+' at or below '+a.label+', which comes from a different situation. Please reconsider.</p>':'')+(ok&&!belowAnchor.length?'':'<p style="margin:8px 0 0">Feel free to adjust before you continue.</p>');
+      $('feedback').hidden=false; $('next').textContent='Continue'; $('feedback').scrollIntoView({behavior:'smooth',block:'center'}); return;
+    }
+    S.results.push({trial:S.t, practice:!!tr.practice, sample:s.id, dir, anchor_sample:tr.anchor, order:tr.order, context_plays:ctxPlays, ms:Math.round(performance.now()-t0), ratings});
+    store.set(key(),{plan:S.plan,results:S.results,cfg:CFG});
+    send({status:'partial', study:CFG.study, participant:S.pid, n_done:S.results.length, n_total:S.plan.length, results:S.results});
+    S.t++; runTrial();
+  };
+}
+
+async function finish(){
+  show('v-done'); $('prog').hidden=true;
+  const out={status:'complete', study:CFG.study, participant:S.pid, finished:new Date().toISOString(), ua:navigator.userAgent, na:CFG.na, ns:CFG.ns, pool:CFG.pool||MAN.samples.filter(x=>x.role==='pool').length, results:S.results};
+  const txt=JSON.stringify(out); $('out').value=txt;
+  const sent = await send(out);
+  const msgEl=$('v-done').querySelector('p');
+  if(sent){ msgEl.innerHTML='Your ratings were sent to the study team. You can close this page. <span class="muted">(If you want a copy, use the buttons below.)</span>'; }
+  $('doneKv').innerHTML='<span>participant</span><span>'+S.pid+'</span><span>rated pages</span><span>'+S.results.filter(r=>!r.practice).length+'</span>';
+  $('copy').onclick=async()=>{ try{ await navigator.clipboard.writeText(txt); toast('Copied. Paste it into your reply.'); }catch(e){ $('out').select(); document.execCommand('copy'); toast('Copied.'); } };
+  if(CFG.to){ const a=$('mail'); a.hidden=false; a.href='mailto:'+CFG.to+'?subject='+encodeURIComponent('[CoSyn listening test] '+S.pid)+'&body='+encodeURIComponent('Please paste the copied results below this line.\n\n'); }
+  try{ const dl=await (window.claude && window.claude.use ? window.claude.use('downloads') : null); if(dl){ $('dl').hidden=false; $('dl').onclick=()=>dl.save({filename:'cosyn_'+S.pid+'.json', data:txt}).then(()=>toast('Saved')).catch(()=>toast('Save declined. Use Copy instead.')); } }catch(e){}
+}
+
+// ---------------------------------------------------------------- boot
+initIntro();
+const MANP=fetch('manifest.json').then(r=>r.json()).then(m=>{ MAN=m; }).catch(()=>{ $('subtitle').textContent='Could not load the example list. Reload the page.'; });
+})();
+</script>
