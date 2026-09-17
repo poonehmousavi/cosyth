@@ -24,6 +24,11 @@ a=ap.parse_args()
 if a.csv: raw=open(a.csv,encoding='utf-8').read()
 else: raw=urllib.request.urlopen(f'https://docs.google.com/spreadsheets/d/{a.sheet_id}/export?format=csv').read().decode('utf-8')
 rows=list(csv.DictReader(raw.splitlines()))
+if not a.csv:  # keep a dated snapshot of the whole sheet next to the script, so a rollback can be undone
+    import os, datetime
+    bdir=os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','results_backup'); os.makedirs(bdir,exist_ok=True)
+    snap=os.path.join(bdir,'sheet_'+datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')+'.csv')
+    open(snap,'w',encoding='utf-8').write(raw); print('sheet snapshot saved to',os.path.relpath(snap))
 # newest row per participant, complete preferred
 best={}
 for r in rows:
